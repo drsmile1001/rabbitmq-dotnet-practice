@@ -1,42 +1,55 @@
+using System;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using EasyNetQ;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 
-namespace RabbitMQPractice
+namespace RabbitMQPractice;
+
+public class Receiver : BackgroundService
 {
-    public class Receiver : BackgroundService
+    private readonly string _host;
+    private readonly string _virtualHost;
+    private readonly string _userName;
+    private readonly string _password;
+
+    public Receiver(IConfiguration configuration)
     {
-        private readonly ILogger<Receiver> _logger;
-        private readonly string _connectionString;
-        private SubscriptionResult _subscription;
+        _host = configuration.GetValue<string>("RabbitMQ:Host");
+        _virtualHost = configuration.GetValue<string>("RabbitMQ:VirtualHost");
+        _userName = configuration.GetValue<string>("RabbitMQ:UserName");
+        _password = configuration.GetValue<string>("RabbitMQ:Password");
+    }
 
-        public Receiver(ILogger<Receiver> logger, IConfiguration configuration)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        var factory = new ConnectionFactory
         {
-            _logger = logger;
-            _connectionString = configuration.GetConnectionString("RabbitMQ");
-        }
+            HostName = _host,
+            VirtualHost = _virtualHost,
+            UserName = _userName,
+            Password = _password
+        };
 
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-        {
-            var bus = RabbitHutch.CreateBus(_connectionString, register=>{
-                register.EnableSystemTextJson();
-            });
-            _subscription = await bus.PubSub.SubscribeAsync<string>("my_subscription_id", msg =>
-            {
-                _logger.LogInformation("Received: {msg}", msg);
-            }, configure=>{
-                configure.WithQueueName("my_queue_name");
-            }, stoppingToken);
-        }
+        using var connection = factory.CreateConnection();
+        using var channel = connection.CreateModel();
 
-        public override async Task StopAsync(CancellationToken stoppingToken)
+        channel.QueueDeclare(queue: "hello", durable: false, exclusive: false, autoDelete: false, arguments: null);
+
+
+        var consumer = new EventingBasicConsumer(channel);
+        consumer.Received += (model, ea) =>
         {
-            _subscription.Dispose();
-            await base.StopAsync(stoppingToken);
-        }
+            var body = ea.Body.ToArray();
+            var message = Encoding.UTF8.GetString(body);
+            Console.WriteLine($" [x] Received {message}");
+        };
+        channel.BasicConsume(queue: "hello",
+                            autoAck: true,
+                            consumer: consumer);
+        await Task.Delay(-1, stoppingToken);
     }
 }
