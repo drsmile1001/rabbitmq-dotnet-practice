@@ -1,7 +1,9 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using EasyNetQ;
 using EasyNetQ.Topology;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -10,25 +12,24 @@ namespace RabbitMQPractice
 {
     public class Sender : BackgroundService
     {
-        private readonly ILogger<Sender> _logger;
+        private readonly string _connectionString;
 
-        public Sender(ILogger<Sender> logger)
+        public Sender(IConfiguration configuration)
         {
-            _logger = logger;
+            _connectionString = configuration.GetConnectionString("RabbitMQ");
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            var bus = RabbitHutch.CreateBus("host=localhost;publisherConfirms=true");
-            var exchange = await bus.Advanced.ExchangeDeclareAsync("event", configure: c => c.WithType(ExchangeType.Fanout));
-
-            for (int i = 1; !stoppingToken.IsCancellationRequested; i++)
+            var bus = RabbitHutch.CreateBus(_connectionString, register=>{
+                register.EnableSystemTextJson();
+            });
+            while (!stoppingToken.IsCancellationRequested)
             {
-                var payload = $"{i}";
-                var message = new Message<string>(payload, new MessageProperties());
-                await bus.Advanced.PublishAsync(exchange: exchange, routingKey: "", mandatory: true, message);
-                _logger.LogInformation("發佈事件 {payload}", payload);
-                await Task.Delay(1000);
+                await bus.PubSub.PublishAsync($"Now: {DateTime.Now}",configure=>{
+                    configure.WithTopic("my_topic");
+                },stoppingToken);
+                await Task.Delay(1000, stoppingToken);
             }
         }
     }
