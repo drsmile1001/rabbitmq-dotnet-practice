@@ -37,7 +37,7 @@ public class Receiver : BackgroundService
         using var connection = factory.CreateConnection();
         using var channel = connection.CreateModel();
 
-        channel.QueueDeclare(queue: "hello", durable: false, exclusive: false, autoDelete: false, arguments: null);
+        channel.QueueDeclare(queue: "hello2", durable: true, exclusive: false, autoDelete: false, arguments: null);
 
 
         var consumer = new EventingBasicConsumer(channel);
@@ -47,7 +47,7 @@ public class Receiver : BackgroundService
             var message = Encoding.UTF8.GetString(body);
             Console.WriteLine($" [x] Received {message}");
         };
-        channel.BasicConsume(queue: "hello",
+        channel.BasicConsume(queue: "hello2",
                             autoAck: true,
                             consumer: consumer);
         await Task.Delay(-1, stoppingToken);

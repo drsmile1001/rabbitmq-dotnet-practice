@@ -30,7 +30,8 @@ public class Sender : BackgroundService
             HostName = _host,
             VirtualHost = _virtualHost,
             UserName = _userName,
-            Password = _password
+            Password = _password,
+            Port = AmqpTcpEndpoint.UseDefaultPort
         };
         using var connection = factory.CreateConnection();
         using var channel  = connection.CreateModel();

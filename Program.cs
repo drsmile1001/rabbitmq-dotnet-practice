@@ -5,7 +5,7 @@ using RabbitMQPractice;
 var builder = Host.CreateDefaultBuilder(args)
             .ConfigureServices((hostContext, services) =>
             {
-                services.AddHostedService<Sender>();
+                //  services.AddHostedService<Sender>();
                 services.AddHostedService<Receiver>();
             });
 var app = builder.Build();
